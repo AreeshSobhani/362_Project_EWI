@@ -54,40 +54,53 @@ uint32_t meter_tick = 0;
 volatile uint32_t button_pending_time[NUM_BUTTONS] = {0};
 volatile bool button_pending[NUM_BUTTONS] = {false};
 
+uint32_t last_action_time[NUM_BUTTONS] = {0};
+
 void check_buttons() {
     uint32_t now = time_us_32();
+    uint32_t all_pins = gpio_get_all();
 
     for (int i = 0; i < NUM_BUTTONS; i++) {
-        // Confirm pending press after 1ms delay
-        if (button_pending[i] && (now - button_pending_time[i] >= 1000)) {
-            button_pending[i] = false;
+        if (button_pending[i]) {
+            // 1. Wait for debounce (1ms)
+            if (now - button_pending_time[i] >= 1000) {
+                
+                // 2. Determine physical state (Assuming Hardware Pull-Down)
+                // Pin is HIGH (1) when pressed, LOW (0) when idle
+                bool is_pressed_now = (all_pins & (1 << BUTTON_PINS[i]));
 
-            bool pin_low = !gpio_get(BUTTON_PINS[i]);
-            if (pin_low && !(button_state & (1 << i))) {
-                button_state   |=  (1 << i);
-                button_pressed |=  (1 << i);
-                printf("Button %d pressed\n", i);
-                stdio_flush();
-                sleep_ms(1000);
-            } else if (!pin_low && (button_state & (1 << i))) {
-                button_state    &= ~(1 << i);
-                button_released |=  (1 << i);
-                printf("Button %d released\n", i);
-                stdio_flush();
-                sleep_ms(1000);
+                // 3. ONLY proceed if the state has actually changed
+                bool last_state = (button_state & (1 << i));
+                
+                if (is_pressed_now != last_state) {
+                    // 4. NOW check lockout. 
+                    // We don't clear button_pending until we actually process or reject based on time.
+                    if (now - last_action_time[i] >= 100000) {
+                        if (is_pressed_now) {
+                            button_state   |= (1 << i);
+                            button_pressed |= (1 << i);
+                        } else {
+                            button_state    &= ~(1 << i);
+                            button_released |= (1 << i);
+                        }
+                        last_action_time[i] = now;
+                    }
+                }
+                
+                // Always clear the flag after the 1ms debounce window
+                // so the interrupt can set it again.
+                button_pending[i] = false;
             }
-            // If state doesn't match — was noise, ignore
         }
     }
 }
 
 void button_callback(uint gpio, uint32_t events) {
-    for (int i = 0; i < NUM_BUTTONS; i++) {
-        if (gpio == BUTTON_PINS[i]) {
-            // Just record the time and which pin fired — no confirmation here
-            button_pending[i] = true;
-            button_pending_time[i] = time_us_32();
-        }
+    // Instead of a loop, if your pins are sequential 2-9:
+    int i = gpio - 2; 
+    if (i >= 0 && i < NUM_BUTTONS) {
+        button_pending[i] = true;
+        button_pending_time[i] = time_us_32();
     }
 }
 
@@ -95,7 +108,8 @@ void init_buttons() {
     for (int i = 0; i < NUM_BUTTONS; i++) {
         gpio_init(BUTTON_PINS[i]);
         gpio_set_dir(BUTTON_PINS[i], GPIO_IN);
-        gpio_pull_up(BUTTON_PINS[i]);  // buttons should connect pin to GND when pressed
+        //buttons are pulled down in hardware
+        //gpio_pull_up(BUTTON_PINS[i]);  // buttons should connect pin to GND when pressed
         gpio_set_irq_enabled_with_callback(
             BUTTON_PINS[i],
             GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,

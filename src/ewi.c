@@ -75,7 +75,7 @@ void check_buttons() {
                 if (is_pressed_now != last_state) {
                     // 4. NOW check lockout. 
                     // We don't clear button_pending until we actually process or reject based on time.
-                    if (now - last_action_time[i] >= 100000) {
+                    if (now - last_action_time[i] >= 10000) {
                         if (is_pressed_now) {
                             button_state   |= (1 << i);
                             button_pressed |= (1 << i);

@@ -51,9 +51,10 @@ volatile bool sample_ready = false;  // <-- ADD
 volatile uint16_t next_sample = 0;   // <-- ADD
 volatile bool update_meter = false;
 uint32_t meter_tick = 0;
+
+//Button time tracking
 volatile uint32_t button_pending_time[NUM_BUTTONS] = {0};
 volatile bool button_pending[NUM_BUTTONS] = {false};
-
 uint32_t last_action_time[NUM_BUTTONS] = {0};
 
 void check_buttons() {
@@ -75,7 +76,7 @@ void check_buttons() {
                 if (is_pressed_now != last_state) {
                     // 4. NOW check lockout. 
                     // We don't clear button_pending until we actually process or reject based on time.
-                    if (now - last_action_time[i] >= 10000) {
+                    if (now - last_action_time[i] >= 0) { //button lockout - increase if necessary
                         if (is_pressed_now) {
                             button_state   |= (1 << i);
                             button_pressed |= (1 << i);

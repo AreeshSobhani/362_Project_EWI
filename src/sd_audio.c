@@ -136,29 +136,3 @@ wav_info_t sd_audio_get_info(void) {
 float pitch_multiplier_from_semitones(int semitones) {
     return powf(2.0f, semitones / 12.0f); // this converts semitone offsets into playback speed multipliers
 }
-
-static int semitones_from_valves(uint8_t valve_state) {
-    switch (valve_state) {
-        case 0b000: return 0;   // open
-        case 0b001: return -2;  // valve 1
-        case 0b010: return -4;  // valve 2
-        case 0b011: return -5;  // 1+2
-        case 0b100: return -7;  // valve 3
-        case 0b101: return -9;  // 1+3
-        case 0b110: return -11; // 2+3
-        case 0b111: return -12; // 1+2+3
-        default:    return 0;
-    }
-} 
-
-float pitch_multiplier_from_buttons(int valve_state, int partial, int octave) { // maps your tuba valve system into semitone offsets
-    int semitones = semitones_from_valves((uint8_t)valve_state);
-
-    if (partial) {
-        semitones += 7;  // perfect fifth up (example)
-    }
-
-    semitones += octave * 12;
-
-    return pitch_multiplier_from_semitones(semitones);
-}
